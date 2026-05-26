@@ -1,0 +1,10 @@
+streamlit
+streamlit-folium
+folium
+fastapi
+uvicorn
+h5py
+numpy
+pandas
+scikit-image
+scikit-learn

@@ -1,0 +1,17 @@
+# Virtual Environment
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Heavy Data Files & Databases
+data/*.h5
+data/*.nc
+data/*.db
+data/*.txt
+*.pth
+
+# OS Files
+.DS_Store
