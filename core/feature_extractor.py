@@ -1,55 +1,59 @@
 import numpy as np
+
 from .risk_engine import (
-    haversine_km,
+    classify_trend,
     compute_risk_score,
+    haversine_km,
     risk_level_from_score,
-    classify_trend
 )
 
-def extract_tcc_features(region, Tb, lat, lon):
-    """
-    Extracts scientific, geographical, and risk features from an AI-detected cloud cluster.
-    """
+
+def extract_tcc_features(region, thermal, latitude, longitude, pixel_area_km2=4.0):
+    """Return the canonical cold-cloud candidate representation."""
     coords = region.coords
-    t_vals = Tb[coords[:, 0], coords[:, 1]]
+    temperatures = thermal[coords[:, 0], coords[:, 1]]
+    finite_temperatures = temperatures[np.isfinite(temperatures)]
+    if finite_temperatures.size == 0:
+        raise ValueError("Candidate has no valid thermal pixels")
 
-    # Find the center of the cloud
     center_row, center_col = map(int, region.centroid)
-    center_lat = lat[center_row, center_col]
-    center_lon = lon[center_row, center_col]
+    center_lat = latitude[center_row, center_col]
+    center_lon = longitude[center_row, center_col]
+    if not np.isfinite(center_lat) or not np.isfinite(center_lon):
+        valid_coords = [
+            (row, col)
+            for row, col in coords
+            if np.isfinite(latitude[row, col]) and np.isfinite(longitude[row, col])
+        ]
+        if not valid_coords:
+            raise ValueError("Candidate has no valid geographic coordinates")
+        center_row, center_col = valid_coords[len(valid_coords) // 2]
+        center_lat = latitude[center_row, center_col]
+        center_lon = longitude[center_row, center_col]
 
-    # Failsafe: If centroid falls in a map gap (NaN), pick the first valid cloud pixel
-    if np.isnan(center_lat) or np.isnan(center_lon):
-        for (r, c) in coords:
-            if not np.isnan(lat[r, c]) and not np.isnan(lon[r, c]):
-                center_lat = lat[r, c]
-                center_lon = lon[r, c]
-                break
-
-    # Calculate radius/spread of the cloud
-    distances = []
-    for (r, c) in coords:
-        if not np.isnan(lat[r, c]) and not np.isnan(lon[r, c]):
-            d = haversine_km(center_lat, center_lon, lat[r, c], lon[r, c])
-            distances.append(d)
-
-    distances = np.array(distances)
-    min_tb = float(np.min(t_vals))
-    mean_radius_km = float(np.mean(distances)) if len(distances) else 0.0
-
-    # Apply Threat Intelligence Logic
-    risk_score = compute_risk_score(min_tb, mean_radius_km)
-    risk_level = risk_level_from_score(risk_score)
-    trend = classify_trend(min_tb, mean_radius_km)
+    distances = [
+        haversine_km(
+            center_lat,
+            center_lon,
+            latitude[row, col],
+            longitude[row, col],
+        )
+        for row, col in coords
+        if np.isfinite(latitude[row, col]) and np.isfinite(longitude[row, col])
+    ]
+    min_temperature = float(np.min(finite_temperatures))
+    mean_radius_km = float(np.mean(distances)) if distances else 0.0
+    risk_score = compute_risk_score(min_temperature, mean_radius_km)
 
     return {
-        "pixel_count": float(region.area),
-        "mean_tb": float(np.mean(t_vals)),
-        "min_tb": min_tb,
-        "center_lat": float(center_lat),
-        "center_lon": float(center_lon),
+        "pixel_count": int(region.area),
+        "area_km2": float(region.area * pixel_area_km2),
+        "mean_temperature_kelvin": float(np.mean(finite_temperatures)),
+        "min_temperature_kelvin": min_temperature,
+        "latitude": float(center_lat),
+        "longitude": float(center_lon),
         "mean_radius_km": mean_radius_km,
         "risk_score": float(risk_score),
-        "risk_level": risk_level,
-        "trend": trend,
+        "risk_level": risk_level_from_score(risk_score),
+        "trend": classify_trend(min_temperature, mean_radius_km),
     }
