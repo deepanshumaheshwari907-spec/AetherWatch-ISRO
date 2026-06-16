@@ -13,17 +13,33 @@ except ImportError:
 
 from sklearn.cluster import KMeans
 
+class _ScaledRegion:
+    def __init__(self, region, scale):
+        self._region = region
+        self.coords = np.round(np.asarray(region.coords, dtype=np.float64) * scale).astype(np.int32)
+        self.centroid = np.asarray(region.centroid, dtype=np.float64) * scale
+        self.area = int(np.asarray(region.area, dtype=np.float64) * (scale ** 2))
+
+    def __getattr__(self, name):
+        return getattr(self._region, name)
+
+
 def detect_and_cluster_clouds(Tb, threshold=235):
     """
     Failsafe AI-Powered Cloud Segmentation.
     Primary: PyTorch U-Net (Deep Learning)
     Fallback: K-Means Clustering (Machine Learning)
     """
-    mask = Tb <= threshold
+    scale = 1
+    if max(Tb.shape) > 1024:
+        scale = max(1, int(np.ceil(max(Tb.shape) / 1024)))
+
+    working_tb = Tb[::scale, ::scale]
+    mask = working_tb <= threshold
     labeled_image = label(mask, connectivity=2)
-    regions = regionprops(labeled_image)
-    
-    ai_segmented_mask = np.zeros_like(Tb, dtype=np.uint8)
+    regions = [_ScaledRegion(region, scale) for region in regionprops(labeled_image)]
+
+    ai_segmented_mask = np.zeros_like(working_tb, dtype=np.uint8)
     
     if np.any(mask):
         use_fallback = False
@@ -38,8 +54,8 @@ def detect_and_cluster_clouds(Tb, threshold=235):
                 model.eval()
                 
                 with torch.no_grad():
-                    Tb_norm = Tb / 330.0
-                    orig_h, orig_w = Tb.shape
+                    Tb_norm = working_tb / 330.0
+                    orig_h, orig_w = working_tb.shape
                     
                     input_tensor = torch.tensor(Tb_norm, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
                     input_resized = F.interpolate(input_tensor, size=(256, 256), mode='bilinear', align_corners=False).to(device)
@@ -60,7 +76,7 @@ def detect_and_cluster_clouds(Tb, threshold=235):
         # --- FALLBACK ENGINE: K-MEANS ML ---
         if use_fallback:
             print("🔄 [AI ENGINE] Executing K-Means Fallback Protocol.")
-            cold_pixels = Tb[mask]
+            cold_pixels = working_tb[mask]
             if len(cold_pixels) >= 3: 
                 kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
                 pixel_data = cold_pixels.reshape(-1, 1)

@@ -6,6 +6,42 @@ from .risk_engine import (
     classify_trend
 )
 
+def describe_geographic_context(lat, lon):
+    """Return a short, human-readable geospatial context for a hotspot."""
+    if np.isnan(lat) or np.isnan(lon):
+        return "No reliable geolocation available from the current INSAT matrix."
+
+    if 6 <= lat <= 37 and 68 <= lon <= 98:
+        return "Indian subcontinent / Bay of Bengal sector with active monsoon-scale convection potential."
+    if 5 <= lat <= 35 and 60 <= lon <= 75:
+        return "South Asian tropical belt with strong convective signal potential."
+    if lat > 0:
+        return "Northern tropical geostationary sector under active thermal monitoring."
+    return "Equatorial / southern tropical sector under active thermal monitoring."
+
+
+def build_threat_explanation(row):
+    """Generate an easy-to-read narrative for why a hotspot matters."""
+    risk_level = row.get("risk_level", "Unknown")
+    score = float(row.get("risk_score", 0.0))
+    trend = row.get("trend", "stable")
+    mean_tb = float(row.get("mean_tb", 0.0))
+    radius = float(row.get("mean_radius_km", 0.0))
+
+    if risk_level == "Extreme":
+        rationale = "Critical convective core with very cold thermal brightness and a large spatial footprint."
+    elif risk_level == "High":
+        rationale = "Large hotspot cluster with strong thermal contrast and expanding storm potential."
+    else:
+        rationale = "Moderate thermal anomaly that should be tracked for trend changes."
+
+    return (
+        f"{risk_level} threat vector: {rationale} "
+        f"Current risk is {score:.1f}% with a {trend.lower()} trend, "
+        f"mean brightness {mean_tb:.1f} K, and an estimated radius of {radius:.1f} km."
+    )
+
+
 def extract_tcc_features(region, Tb, lat, lon):
     """
     Extracts scientific, geographical, and risk features from an AI-detected cloud cluster.

@@ -11,42 +11,45 @@ def load_tb_lat_lon(filepath):
         raise FileNotFoundError(f"Satellite data file not found at: {filepath}")
 
     with h5py.File(filepath, "r") as f:
-        # Extract raw image and look-up table (LUT)
-        raw = f["IMG_TIR1"][0]
-        lut = f["IMG_TIR1_TEMP"][:]
-        Tb  = lut[raw]
+        raw = np.asarray(f["IMG_TIR1"][0], dtype=np.int32)
+        lut = np.asarray(f["IMG_TIR1_TEMP"][:], dtype=np.float32)
+        Tb = lut[raw].astype(np.float32, copy=False)
 
-        X = f["X"][:]   # scan angle grid
-        Y = f["Y"][:]
+        X = np.asarray(f["X"][:], dtype=np.float32)
+        Y = np.asarray(f["Y"][:], dtype=np.float32)
 
-    # INSAT geostationary constants
-    sat_lon = 82.0          # INSAT-3D longitude (deg E)
-    H       = 42164000.0    # satellite height (m)
-    Re      = 6378137.0
-    Rp      = 6356752.3
+    sat_lon = np.float32(82.0)
+    H = np.float32(42164000.0)
+    Re = np.float32(6378137.0)
+    Rp = np.float32(6356752.3)
 
-    xx, yy = np.meshgrid(X, Y)
+    lat = np.empty((Y.size, X.size), dtype=np.float32)
+    lon = np.empty_like(lat)
 
-    x = np.deg2rad(xx)
-    y = np.deg2rad(yy)
+    row_chunk = 256
+    inv_rp2 = (Re / Rp) ** 2
 
-    cosx = np.cos(x)
-    cosy = np.cos(y)
-    sinx = np.sin(x)
-    siny = np.sin(y)
+    for start in range(0, Y.size, row_chunk):
+        end = min(start + row_chunk, Y.size)
 
-    # Projection Math
-    a = (H * cosx * cosy)**2 - (cosy**2 + (Re/Rp)**2 * siny**2) * (H**2 - Re**2)
-    a[a < 0] = np.nan
-    a = np.sqrt(a)
+        x = np.deg2rad(X[None, :])
+        y = np.deg2rad(Y[start:end, None])
 
-    sn = (H*cosx*cosy - a) / (cosy**2 + (Re/Rp)**2 * siny**2)
+        cosx = np.cos(x)
+        cosy = np.cos(y)
+        sinx = np.sin(x)
+        siny = np.sin(y)
 
-    sx = sn * cosx * cosy
-    sy = -sn * sinx * cosy
-    sz =  sn * siny
+        a = (H * cosx * cosy) ** 2 - (cosy ** 2 + inv_rp2 * siny ** 2) * (H ** 2 - Re ** 2)
+        a = np.sqrt(np.maximum(a, 0)).astype(np.float32, copy=False)
 
-    lon = np.rad2deg(np.arctan2(sy, sx)) + sat_lon
-    lat = np.rad2deg(np.arctan((Re**2 / Rp**2) * (sz / np.sqrt(sx**2 + sy**2))))
+        sn = (H * cosx * cosy - a) / (cosy ** 2 + inv_rp2 * siny ** 2)
+
+        sx = sn * cosx * cosy
+        sy = -sn * sinx * cosy
+        sz = sn * siny
+
+        lon[start:end] = np.rad2deg(np.arctan2(sy, sx)).astype(np.float32) + sat_lon
+        lat[start:end] = np.rad2deg(np.arctan((Re ** 2 / Rp ** 2) * (sz / np.sqrt(sx ** 2 + sy ** 2)))).astype(np.float32)
 
     return Tb, lat, lon

@@ -1,8 +1,10 @@
-import schedule
-import time
 import os
+import time
 from datetime import datetime
-from data_fetcher import fetch_latest_satellite_data
+
+import schedule
+
+from core.data_fetcher import fetch_latest_satellite_data
 
 # Yeh log file track karegi ki worker kab kab chala tha
 LOG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'worker_logs.txt'))
