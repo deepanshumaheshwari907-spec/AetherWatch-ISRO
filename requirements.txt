@@ -1,4 +1,4 @@
-# AetherWatch — ISRO INSAT-3D Cyclone Intelligence System
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # ── Core UI ──────────────────────────────────────────
 streamlit==1.57.0
@@ -6,23 +6,22 @@ streamlit-folium==0.27.2
 folium==0.20.0
 
 # ── Data & Science ───────────────────────────────────
-numpy==2.4.6
-pandas==3.0.3
-scipy==1.17.1
-scikit-learn==1.8.0
-scikit-image==0.26.0
-h5py==3.16.0
+numpy
+pandas
+scipy
+scikit-learn
+scikit-image
+h5py
 
-# ── Deep Learning (CPU only for cloud deployment) ────
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.0+cpu
-torchvision==0.17.0+cpu
+# ── Deep Learning ────────────────────────────────────
+torch==2.12.0+cpu
+torchvision==0.27.0+cpu
 
 # ── Visualisation ────────────────────────────────────
-matplotlib==3.10.9
-plotly==6.8.0
+matplotlib
+plotly
 
 # ── Utilities ────────────────────────────────────────
-python-dotenv==1.2.2
-schedule==1.2.2
-requests==2.34.2
+python-dotenv
+schedule
+requests
